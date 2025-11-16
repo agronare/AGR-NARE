@@ -86,6 +86,7 @@ export function AddMaintenanceDialog({
       technician: '',
       cost: 0,
       status: 'Programado',
+      date: new Date(),
     },
   });
 
@@ -129,7 +130,7 @@ export function AddMaintenanceDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Activo</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar activo..." />
@@ -149,7 +150,7 @@ export function AddMaintenanceDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Tipo de Mantenimiento</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue />
@@ -236,7 +237,7 @@ export function AddMaintenanceDialog({
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel>Estado</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
                             <SelectTrigger>
                                 <SelectValue />
