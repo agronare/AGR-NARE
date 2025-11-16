@@ -32,7 +32,7 @@ export default function DashboardPage() {
     if (!firestore || !user) return null;
     return collection(firestore, 'sales');
   }, [firestore, user]);
-  const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesCollection);
+  const { data: sales, isLoading: salesLoading } = useCollection<Sale & { status?: string }>(salesCollection);
 
   const clientsCollection = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -165,8 +165,8 @@ export default function DashboardPage() {
       .map(([name, quantity]) => ({ name, quantity }));
   }, [sales]);
 
-  const inventoryByBranch = useMemo(() => {
-    if (!inventory) return [];
+  const inventoryByBranch = useMemo<Record<string, number>>(() => {
+    if (!inventory) return {};
     
     return inventory.reduce((acc, item) => {
         const branchName = item.branchId;
