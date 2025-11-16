@@ -1,3 +1,10 @@
+"use client";
+
+export default function DeprecatedPurchasesPage() {
+  // Legacy client page kept as a stub to avoid duplicate hook execution
+  // The real purchases UI is provided by server `src/app/erp/purchases/page.tsx`
+  return null;
+}
 
 
 'use client';

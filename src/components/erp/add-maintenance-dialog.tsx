@@ -75,7 +75,7 @@ export function AddMaintenanceDialog({
   editingMaintenance,
 }: AddMaintenanceDialogProps) {
   const firestore = useFirestore();
-  const assetsCollection = useMemoFirebase(() => collection(firestore, 'fixed_assets'), [firestore]);
+  const assetsCollection = useMemoFirebase(() => firestore ? collection(firestore, 'fixed_assets') : null, [firestore]);
   const { data: assets } = useCollection<FixedAsset>(assetsCollection);
   
   const form = useForm<z.infer<typeof maintenanceSchema>>({

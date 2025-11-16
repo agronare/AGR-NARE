@@ -119,13 +119,13 @@ export default function PurchasesPage() {
     return query(collection(firestore, 'purchases'));
   }, [firestore]);
   const { data: rawPurchases, isLoading: loadingPurchases } = useCollection<PurchaseOrder>(purchasesCollection);
-  const suppliersCollection = useMemoFirebase(() => collection(firestore, 'suppliers'), [firestore]);
+  const suppliersCollection = useMemoFirebase(() => firestore ? collection(firestore, 'suppliers') : null, [firestore]);
   const { data: suppliers, isLoading: loadingSuppliers } = useCollection<Supplier>(suppliersCollection);
-  const productsCollection = useMemoFirebase(() => collection(firestore, 'products'), [firestore]);
+  const productsCollection = useMemoFirebase(() => firestore ? collection(firestore, 'products') : null, [firestore]);
   const { data: products, isLoading: loadingProducts } = useCollection<Product>(productsCollection);
-  const quotesCollection = useMemoFirebase(() => collection(firestore, 'quotations'), [firestore]);
+  const quotesCollection = useMemoFirebase(() => firestore ? collection(firestore, 'quotations') : null, [firestore]);
   const { data: rawQuotes, isLoading: loadingQuotes } = useCollection<Quote>(quotesCollection);
-  const branchesCollection = useMemoFirebase(() => collection(firestore, 'branches'), [firestore]);
+  const branchesCollection = useMemoFirebase(() => firestore ? collection(firestore, 'branches') : null, [firestore]);
   const { data: branches, isLoading: loadingBranches } = useCollection<Branch>(branchesCollection);
 
   const loading = loadingPurchases || loadingSuppliers || loadingProducts || loadingQuotes || loadingBranches;
