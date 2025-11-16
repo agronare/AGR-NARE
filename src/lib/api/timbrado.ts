@@ -17,7 +17,7 @@ export type CfdiData = {
     nombreEmisor: string;
     regimenFiscalEmisor: string;
     rfcReceptor: string;
-a   nombreReceptor: string;
+    nombreReceptor: string;
     usoCfdi: string;
     domicilioFiscalReceptor: string;
     regimenFiscalReceptor: string;
