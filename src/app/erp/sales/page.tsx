@@ -97,8 +97,7 @@ function SalesForm({ products, clients, inventory, onSaleCreated, onDownloadPDF,
     const isPublicGeneral = watchClientId === PUBLIC_GENERAL_ID;
     const creditError = watchPaymentMethod === 'Credito' && totalAmount > availableCredit;
     const creditUsagePercentage = creditLimit > 0 ? (creditUsed / creditLimit) * 100 : 0;
-    const hasInventoryError = errors.items?.some(item => !!item?.quantity);
-
+    const hasInventoryError = Array.isArray(errors.items) && errors.items.some(item => !!(item as any)?.quantity);
     const productsWithInventory: ProductWithInventory[] = useMemo(() => {
         if (!watchBranchId || !products || !inventory) return [];
         
@@ -111,6 +110,7 @@ function SalesForm({ products, clients, inventory, onSaleCreated, onDownloadPDF,
     }, [products, inventory, watchBranchId]);
 
     const availableProducts = useMemo(() => {
+        if (!productsWithInventory) return [];
         return productsWithInventory
             .filter(p => {
                 const searchTerm = productSearch.toLowerCase();
@@ -617,7 +617,7 @@ export default function SalesPage() {
             }),
             headStyles: { fillColor: '#2E7D32' },
             didDrawPage: (data) => {
-              const pageCount = doc.internal.getNumberOfPages();
+              const pageCount = (doc.internal as any).getNumberOfPages ? (doc.internal as any).getNumberOfPages() : 0;
               doc.setFontSize(10);
               doc.text('Página ' + data.pageNumber + ' de ' + pageCount, data.settings.margin.left!, doc.internal.pageSize.height - 10);
             }

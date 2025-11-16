@@ -31,7 +31,25 @@ import {
 } from '../ui/form';
 import { ScrollArea } from '../ui/scroll-area';
 import { useEffect } from 'react';
-import type { Product } from '@/app/erp/products/page';
+// Local Product interface replacing invalid import (module did not export Product)
+interface Product {
+  sku: string;
+  name: string;
+  description?: string | null;
+  category: string;
+  manufacturer: string;
+  activeIngredient: string;
+  salePrice: number;
+  standardCost?: number | null;
+  satTax?: string | null;
+  technicalSheetUrl?: string | null;
+  applicationGuideUrl?: string | null;
+  bulk: boolean;
+  purchaseUnit?: string | null;
+  bulkUnit?: string | null;
+  conversionFactor?: number | null;
+  cost: number;
+}
 import { cn } from '@/lib/utils';
 
 type AddProductDialogProps = {
@@ -101,9 +119,40 @@ export function AddProductDialog({
   useEffect(() => {
     if (isOpen) {
         if (editingProduct) {
+            // Sanitize nullable fields and omit unsupported 'cost' property for form reset
+            const {
+              cost,
+              sku,
+              name,
+              description,
+              category,
+              manufacturer,
+              activeIngredient,
+              salePrice,
+              satTax,
+              technicalSheetUrl,
+              applicationGuideUrl,
+              bulk,
+              purchaseUnit,
+              bulkUnit,
+              conversionFactor,
+            } = editingProduct;
             form.reset({
-                ...editingProduct,
-                standardCost: editingProduct.cost,
+              sku,
+              name,
+              description: description ?? '',
+              category,
+              manufacturer,
+              activeIngredient,
+              salePrice,
+              standardCost: cost,
+              satTax: satTax ?? 'none',
+              technicalSheetUrl: technicalSheetUrl ?? '',
+              applicationGuideUrl: applicationGuideUrl ?? '',
+              bulk,
+              purchaseUnit: purchaseUnit ?? '',
+              bulkUnit: bulkUnit ?? '',
+              conversionFactor: conversionFactor ?? 1,
             });
         } else {
             form.reset({

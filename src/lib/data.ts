@@ -44,10 +44,22 @@ export const inventarioChartData = [
 ];
 
 export const documents: Document[] = [
-  { id: '1', name: 'Contrato_Cliente_Alfa.pdf', uploadedBy: 'Ana Pérez', uploadDate: format(subDays(now, 30), 'PP'), size: '2.5 MB', employeeId: '1' },
-  { id: '2', name: 'Propuesta_Proyecto_Beta.docx', uploadedBy: 'Luis García', uploadDate: format(subDays(now, 20), 'PP'), size: '1.8 MB', employeeId: '2' },
-  { id: '3', name: 'Reporte_Financiero_Q2.xlsx', uploadedBy: 'Ana Pérez', uploadDate: format(subDays(now, 10), 'PP'), size: '850 KB', employeeId: '1' },
-  { id: '4', name: 'Manual_de_Marca.pdf', uploadedBy: 'Luis García', uploadDate: format(subDays(now, 5), 'PP'), size: '5.2 MB', employeeId: '2' },
+  {
+    id: '1', name: 'Contrato_Cliente_Alfa.pdf', uploadedBy: 'Ana Pérez', uploadDate: format(subDays(now, 30), 'PP'), size: '2.5 MB', employeeId: '1',
+    fileLocation: ''
+  },
+  {
+    id: '2', name: 'Propuesta_Proyecto_Beta.docx', uploadedBy: 'Luis García', uploadDate: format(subDays(now, 20), 'PP'), size: '1.8 MB', employeeId: '2',
+    fileLocation: ''
+  },
+  {
+    id: '3', name: 'Reporte_Financiero_Q2.xlsx', uploadedBy: 'Ana Pérez', uploadDate: format(subDays(now, 10), 'PP'), size: '850 KB', employeeId: '1',
+    fileLocation: ''
+  },
+  {
+    id: '4', name: 'Manual_de_Marca.pdf', uploadedBy: 'Luis García', uploadDate: format(subDays(now, 5), 'PP'), size: '5.2 MB', employeeId: '2',
+    fileLocation: ''
+  },
 ];
 
 export const invoices: Invoice[] = [

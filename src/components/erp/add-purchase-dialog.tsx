@@ -32,8 +32,17 @@ import { useEffect, useState } from 'react';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import type { Supplier } from '@/app/erp/suppliers/page';
-import type { Product } from '@/app/erp/products/page';
-import type { Quotation } from '@/app/erp/quotations/page';
+// Local Product type (page module does not export Product)
+type Product = {
+  id?: string;
+  sku: string;
+  name: string;
+};
+// Local Quotation type (module does not export Quotation)
+type Quotation = {
+  id: string;
+  quotationNumber: string;
+};
 
 type AddPurchaseDialogProps = {
   isOpen: boolean;

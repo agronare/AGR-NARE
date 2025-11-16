@@ -5,7 +5,11 @@ type Recommendation = {
     reason: string;
 }
 
-export function getRecommendations(client: Client, products: ProductWithInventory[]): Recommendation[] {
+// Extend Client inline to include agricultural fields expected by this logic.
+export function getRecommendations(
+    client: Client & { isAgricultural?: boolean; mainCrop?: string },
+    products: ProductWithInventory[]
+): Recommendation[] {
     const recommendations: Recommendation[] = [];
 
     if (!client.isAgricultural || !client.mainCrop) return [];

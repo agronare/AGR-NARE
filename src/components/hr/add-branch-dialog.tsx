@@ -75,7 +75,7 @@ export function AddBranchDialog({
   }, [editingBranch, form, isOpen]);
 
   const onSubmit = (data: z.infer<typeof branchSchema>) => {
-    onSave(data);
+    onSave({ ...data, phone: data.phone ?? '' });
     onOpenChange(false);
   };
 

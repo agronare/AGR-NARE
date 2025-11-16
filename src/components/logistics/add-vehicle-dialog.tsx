@@ -28,7 +28,17 @@ import {
   FormMessage,
 } from '../ui/form';
 import { useEffect } from 'react';
-import type { Vehicle } from '../logistics/context';
+// Inline Vehicle type (previously imported from missing '../logistics/context')
+type Vehicle = {
+  id?: string;
+  name: string;
+  plate: string;
+  type: 'Camioneta' | 'Tractor' | 'Camión';
+  brand?: string;
+  model?: string;
+  year?: number;
+  capacity?: string;
+};
 
 type AddVehicleDialogProps = {
   isOpen: boolean;

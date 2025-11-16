@@ -9,8 +9,26 @@ import {
   DocumentReference,
   SetOptions,
 } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import {FirestorePermissionError} from '@/firebase/errors';
+import {FirestorePermissionError} from './errors';
+
+// Local lightweight error emitter implementation (inlined to avoid missing module import)
+type PermissionErrorListener = (error: FirestorePermissionError) => void;
+
+class ErrorEmitter {
+  private listeners: { [event: string]: PermissionErrorListener[] } = {};
+  emit(event: 'permission-error', error: FirestorePermissionError) {
+    (this.listeners[event] || []).forEach(fn => fn(error));
+  }
+  on(event: 'permission-error', listener: PermissionErrorListener) {
+    this.listeners[event] = this.listeners[event] || [];
+    this.listeners[event].push(listener);
+    return () => {
+      this.listeners[event] = this.listeners[event].filter(l => l !== listener);
+    };
+  }
+}
+
+export const errorEmitter = new ErrorEmitter();
 
 /**
  * Initiates a setDoc operation for a document reference.

@@ -39,6 +39,7 @@ import { formatCurrency } from '@/utils/formatters';
 
 
 export type InventoryItem = {
+  productId: string;
   id: string;
   productName: string;
   sku: string;
