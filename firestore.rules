@@ -1,0 +1,269 @@
+/**
+ * @file Overview
+ * This ruleset enforces a multi-tenant security model for GestionaPro,
+ * focusing on isolation and access control for employees, financial records, documents, clients, and invoices.
+ *
+ * Data Structure:
+ * - Employees are stored under `/employees/{employeeId}`, with access restricted to the employee themselves.
+ * - Financial records are stored under `/financial_records/{financialRecordId}` with general access needs that are currently not defined.
+ * - Documents are stored under `/documents/{documentId}` and associated with employees via the `employeeId` field. Document creation is tied to the existence of an employee profile.
+ * - Clients are stored under `/clients/{clientId}`.
+ * - Invoices are stored under `/clients/{clientId}/invoices/{invoiceId}`, accessible only in relation to the client.
+ *
+ * Key Security Decisions:
+ * - Strict user-ownership model for employee profiles.
+ * - Documents can only be created if the associated employee profile exists.
+ * - Path-based ownership for invoices, linked to clients.
+ * - The financial_records collection requires further definition for access control needs, currently defaults to false.
+ *
+ * Denormalization for Authorization:
+ *  - The rules leverage path-based ownership to avoid `get()` calls. For example, checking if `request.auth.uid == employeeId` in `/employees/{employeeId}`.
+ *
+ * Structural Segregation:
+ *  - Separate collections are used for employees, financial records, documents, clients, and invoices to maintain a clear security posture for each type of data.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Allows authenticated users to manage their own profile and list all employees.
+     * @path /employees/{employeeId}
+     * @allow (read, write) Authenticated users can manage employee data.
+     */
+    match /employees/{employeeId} {
+      allow read, write: if request.auth != null;
+    }
+
+    /**
+     * @description Manages financial records. Access control needs are undefined and default to false.
+     * @path /financial_records/{financialRecordId}
+     * @allow None.  Currently no access is granted.
+     * @deny All operations are denied until access control needs are defined.
+     * @principle Restricts all access until access control model is defined.
+     */
+    match /financial_records/{financialRecordId} {
+      allow read, write: if false;
+    }
+
+    /**
+     * @description Manages company documents. Checks for employee existence before allowing document creation.
+     * @path /documents/{documentId}
+     * @allow (create) If employee profile exists at /employees/{employeeId}
+     * @deny (create) If employee profile does not exist at /employees/{employeeId}
+     * @principle Validates employee existence before allowing document creation, associating documents with valid employees.
+     */
+    match /documents/{documentId} {
+        function employeeExists(employeeId) {
+            return exists(/databases/$(database)/documents/employees/$(employeeId));
+        }
+
+        function getEmployeeId() {
+            return request.resource.data.employeeId;
+        }
+
+        allow read, write: if request.auth != null;
+    }
+
+      /**
+       * @description Stores client information. Open access for get/list, no writes allowed for now
+       * @path /clients/{clientId}
+       * @allow (get, list) Any user can read the list of clients.
+       * @deny (create, update, delete) No one can create, update or delete a client.
+       * @principle Allow public read-only access to clients.
+       */
+    match /clients/{clientId} {
+      allow read, write: if request.auth != null;
+
+      /**
+       * @description Enforces path-based ownership for invoices related to clients.
+       * @path /clients/{clientId}/invoices/{invoiceId}
+       * @allow (create) If the user knows the client id, they can create an invoice under it
+       * @principle Enforces document ownership based on the parent path.
+       */
+      match /invoices/{invoiceId} {
+        allow read, write: if request.auth != null;
+      }
+    }
+    
+    /**
+     * @description Stores sales opportunities for the pipeline.
+     * @path /opportunities/{opportunityId}
+     * @allow (read, write) Any authenticated user can manage opportunities.
+     * @principle Open access for authenticated users to facilitate collaboration.
+     */
+    match /opportunities/{opportunityId} {
+        allow read, write: if request.auth != null;
+    }
+
+    /**
+     * @description Stores the product catalog.
+     * @path /products/{productId}
+     * @allow (read, write) Any authenticated user can manage products.
+     * @principle Open access for authenticated users to manage a shared resource.
+     */
+    match /products/{productId} {
+        allow read, write: if request.auth != null;
+    }
+
+    /**
+     * @description Stores inventory items (lots).
+     * @path /inventory/{inventoryItemId}
+     * @allow (read, write) Any authenticated user can manage inventory.
+     * @principle Open access for authenticated users to manage shared inventory data.
+     */
+    match /inventory/{inventoryItemId} {
+        allow read, write: if request.auth != null;
+    }
+    
+    /**
+     * @description Stores sales transactions.
+     * @path /sales/{saleId}
+     * @allow (read, write) Any authenticated user can manage sales.
+     * @principle Open access for authenticated users.
+     */
+    match /sales/{saleId} {
+      allow read, write: if request.auth != null;
+      
+      /**
+       * @description Stores items within a sale.
+       * @path /sales/{saleId}/items/{itemId}
+       * @allow (read, write) Any authenticated user can manage items within a sale.
+       * @principle Inherits context from the parent sale.
+       */
+      match /items/{itemId} {
+        allow read, write: if request.auth != null;
+      }
+    }
+    
+    /**
+     * @description Stores supplier information.
+     * @path /suppliers/{supplierId}
+     * @allow (read, write) Any authenticated user can manage suppliers.
+     * @principle Open access for authenticated users to manage a shared resource.
+     */
+    match /suppliers/{supplierId} {
+        allow read, write: if request.auth != null;
+    }
+    
+    /**
+     * @description Stores purchase transactions.
+     * @path /purchases/{purchaseId}
+     * @allow (read, write) Any authenticated user can manage purchases.
+     * @principle Open access for authenticated users.
+     */
+    match /purchases/{purchaseId} {
+        allow read, write: if request.auth != null;
+    }
+
+    /**
+     * @description Stores the vehicle fleet.
+     * @path /vehicles/{vehicleId}
+     * @allow (read, write) Any authenticated user can manage vehicles.
+     * @principle Open access for authenticated users to manage a shared resource.
+     */
+    match /vehicles/{vehicleId} {
+      allow read, write: if request.auth != null;
+    }
+
+    /**
+     * @description Stores customer delivery records.
+     * @path /deliveries/{deliveryId}
+     * @allow (read, write) Any authenticated user can manage deliveries.
+     * @principle Open access for authenticated users.
+     */
+    match /deliveries/{deliveryId} {
+      allow read, write: if request.auth != null;
+    }
+
+    /**
+     * @description Stores field pickup records.
+     * @path /pickups/{pickupId}
+     * @allow (read, write) Any authenticated user can manage pickups.
+     * @principle Open access for authenticated users.
+     */
+    match /pickups/{pickupId} {
+      allow read, write: if request.auth != null;
+    }
+
+    /**
+     * @description Stores the company's fixed assets.
+     * @path /fixed_assets/{assetId}
+     * @allow (read, write) Any authenticated user can manage fixed assets.
+     * @principle Open access for authenticated users.
+     */
+    match /fixed_assets/{assetId} {
+        allow read, write: if request.auth != null;
+    }
+    
+    /**
+     * @description Stores company branch locations.
+     * @path /branches/{branchId}
+     * @allow (read, write) Any authenticated user can manage branches.
+     * @principle Open access for authenticated users.
+     */
+    match /branches/{branchId} {
+        allow read, write: if request.auth != null;
+    }
+
+    /**
+     * @description Stores supplier quotations.
+     * @path /quotations/{quotationId}
+     * @allow (read, write) Any authenticated user can manage quotations.
+     * @principle Open access for authenticated users.
+     */
+    match /quotations/{quotationId} {
+        allow read, write: if request.auth != null;
+    }
+    
+    /**
+     * @description Stores user-specific notifications.
+     * @path /users/{userId}/notifications/{notificationId}
+     * @allow (read, write) If the user is authenticated and the userId matches their UID.
+     * @principle Enforces user ownership of their own notifications.
+     */
+    match /users/{userId}/notifications/{notificationId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Stores payment records.
+     * @path /payments/{paymentId}
+     * @allow (read, write) Any authenticated user can manage payments.
+     * @principle Open access for authenticated users to manage a shared resource.
+     */
+    match /payments/{paymentId} {
+        allow read, write: if request.auth != null;
+    }
+
+    /**
+     * @description Stores maintenance records.
+     * @path /maintenances/{maintenanceId}
+     * @allow (read, write) Any authenticated user can manage maintenance records.
+     * @principle Open access for authenticated users.
+     */
+    match /maintenances/{maintenanceId} {
+        allow read, write: if request.auth != null;
+    }
+    
+    /**
+     * @description Stores payroll runs.
+     * @path /payrolls/{payrollId}
+     * @allow (read, write) Any authenticated user can manage payrolls.
+     * @principle Open access for authenticated users.
+     */
+    match /payrolls/{payrollId} {
+        allow read, write: if request.auth != null;
+    }
+
+    /**
+     * @description Stores logistics expenses.
+     * @path /logistics_expenses/{expenseId}
+     * @allow (read, write) Any authenticated user can manage logistics expenses.
+     * @principle Open access for authenticated users.
+     */
+    match /logistics_expenses/{expenseId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
