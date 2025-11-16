@@ -1,6 +1,6 @@
 'use client';
-import { useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
+
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
@@ -34,10 +34,14 @@ type OrderProduct = {
 };
 
 export function ReceptionTab() {
-  const searchParams = useSearchParams();
-  const orderId = searchParams.get('orderId');
+  const [orderId, setOrderId] = useState<string | null>(null);
   const firestore = useFirestore();
   const { toast } = useToast();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setOrderId(params.get('orderId'));
+  }, []);
 
   const purchaseDocRef = useMemoFirebase(() => orderId ? doc(firestore, 'purchases', orderId) : null, [firestore, orderId]);
   const { data: purchase, isLoading: isLoadingPurchase } = useDoc<PurchaseOrder>(purchaseDocRef);
