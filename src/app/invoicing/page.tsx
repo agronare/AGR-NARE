@@ -53,7 +53,7 @@ export default function InvoicingPage() {
   const handleCancelInvoice = () => {
     if (!firestore || !invoiceToCancel || !('clientId' in invoiceToCancel)) return;
     const invoiceDocRef = doc(firestore, 'clients', (invoiceToCancel as any).clientId, 'invoices', invoiceToCancel.id);
-    updateDocumentNonBlocking(invoiceDocRef, { status: 'Cancelled' });
+    updateDocumentNonBlocking(firestore, invoiceDocRef, { status: 'Cancelled' });
     toast({
       title: "Factura Cancelada",
       description: "La factura ha sido marcada como cancelada.",

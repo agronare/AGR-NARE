@@ -1,4 +1,6 @@
-"use client";
+
+
+'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
@@ -68,7 +70,7 @@ const purchaseItemSchema = z.object({
   quantity: z.coerce.number().min(1, 'La cantidad debe ser mayor a 0'),
   cost: z.coerce.number().min(0.01, 'El costo debe ser mayor a 0'),
   lotNumber: z.string().optional(),
-  realCost: z.number().optional(),
+  realCost: z.number().optional(), // Se calculará al guardar
 });
 
 const purchaseSchema = z.object({
@@ -87,6 +89,7 @@ const purchaseSchema = z.object({
 type PurchaseFormValues = z.infer<typeof purchaseSchema>;
 const STATUS_OPTIONS: (PurchaseOrderStatus | 'all')[] = ['all', 'Pendiente', 'Completada', 'Cancelada'];
 
+// Schema para el formulario rápido de producto
 const quickProductSchema = ProductSchema.pick({
     name: true,
     sku: true,
@@ -114,6 +117,7 @@ export default function PurchasesPage() {
   const router = useRouter();
   const firestore = useFirestore();
 
+  // Data fetching
   const purchasesCollection = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collection(firestore, 'purchases'));
@@ -181,7 +185,8 @@ export default function PurchasesPage() {
   useEffect(() => {
     const supplier = suppliers?.find(s => s.id === watchSupplierId);
     setSelectedSupplier(supplier || null);
-    if (supplier && !(supplier as any).hasCredit) {
+    // Suppliers that don't have a credit limit (or have a limit of 0) should not be allowed to use "Credito"
+    if (supplier && (supplier.creditLimit || 0) <= 0) {
       form.setValue('paymentMethod', 'Efectivo');
     }
   }, [watchSupplierId, suppliers, form]);
@@ -235,6 +240,7 @@ export default function PurchasesPage() {
   }, [purchases]);
 
   const onNewProductSubmit = async (values: z.infer<typeof quickProductSchema>) => {
+    if (!firestore) return;
     try {
         const fullProductData: z.infer<typeof ProductSchema> = {
             ...values,
@@ -242,14 +248,21 @@ export default function PurchasesPage() {
             isBulk: false, salesUnit: 'Pieza', purchaseUnit: 'Pieza', conversionFactor: 1,
             objetoImp: '02', ivaRate: 0.16, iepsRate: 0,
         };
-        const docRef = await addDocumentNonBlocking(collection(firestore, 'products'), fullProductData);
-        toast({ title: 'Producto Creado', description: 'El nuevo producto ha sido agregado al catálogo.' });
-        form.setValue(`items.${currentProductIndex}.productId`, docRef.id);
-        form.setValue(`items.${currentProductIndex}.productName`, values.name);
-        form.setValue(`items.${currentProductIndex}.cost`, values.cost || 0);
-        setIsNewProductDialogOpen(false);
-        setIsProductSearchOpen(false);
-        newProductForm.reset();
+        // create a DocumentReference with an auto-generated id and pass it to the helper which expects a DocumentReference
+        const productsCollectionRef = collection(firestore, 'products');
+        const newDocRef = doc(productsCollectionRef);
+        const docRef = await addDocumentNonBlocking(firestore, newDocRef, fullProductData);
+        if (docRef) {
+            toast({ title: 'Producto Creado', description: 'El nuevo producto ha sido agregado al catálogo.' });
+            form.setValue(`items.${currentProductIndex}.productId`, docRef.id);
+            form.setValue(`items.${currentProductIndex}.productName`, values.name);
+            form.setValue(`items.${currentProductIndex}.cost`, values.cost || 0);
+            setIsNewProductDialogOpen(false);
+            setIsProductSearchOpen(false);
+            newProductForm.reset();
+        } else {
+            throw new Error("No se pudo obtener la referencia del nuevo documento.");
+        }
     } catch (error) {
         console.error("Error creating quick product:", error);
         toast({ title: 'Error', description: 'No se pudo crear el nuevo producto.', variant: 'destructive' });
@@ -257,6 +270,7 @@ export default function PurchasesPage() {
   };
   
   const onSubmit = async (values: PurchaseFormValues) => {
+    if (!firestore) return;
     try {
       const supplierName = suppliers?.find(s => s.id === values.supplierId)?.companyName || 'Desconocido';
         await runTransaction(firestore, async (transaction) => {
@@ -291,7 +305,7 @@ export default function PurchasesPage() {
                 associatedCosts: values.associatedCosts || [],
                 total: totalOrder,
                 status: values.status,
-                notes: values.notes,
+                notes: values.notes || '',
                 quoteId: values.quoteId,
                 paymentMethod: values.paymentMethod,
                 previousStatus: editingPurchase?.status || 'Pendiente'
@@ -305,13 +319,13 @@ export default function PurchasesPage() {
                     if (isCompletion) {
                         const newLotRef = doc(collection(firestore, 'inventory'));
                         const newLot: Omit<InventoryItem, 'id'> = {
-                            productId: item.productId,
+                            productName: item.productName,
+                            sku: item.productId,
                             branchId: values.branchId,
-                            stock: stockToAdd,
-                            minStock: 10,
-                            lotNumber: item.lotNumber || `LOTE-${newLotRef.id.substring(0,6)}`,
-                            purchaseCost: item.realCost!,
-                            entryDate: values.date,
+                            quantity: stockToAdd,
+                            lot: item.lotNumber || `LOTE-${newLotRef.id.substring(0,6)}`,
+                            unitPrice: item.realCost!,
+                            entryDate: format(values.date, 'dd/MM/yyyy'),
                         };
                         transaction.set(newLotRef, newLot);
                         const productRef = doc(firestore, 'products', item.productId);
@@ -342,10 +356,16 @@ export default function PurchasesPage() {
   const handleEdit = (purchase: PurchaseOrder) => {
     setEditingPurchase(purchase);
     form.reset({
-      ...purchase,
+      supplierId: purchase.supplierId,
+      branchId: purchase.branchId,
       date: purchase.date,
+      status: purchase.status,
       items: [],
       associatedCosts: [],
+      receptionId: purchase.receptionId,
+      notes: purchase.notes,
+      quoteId: purchase.quoteId,
+      paymentMethod: purchase.paymentMethod as 'Efectivo' | 'Tarjeta' | 'Credito',
     });
     replaceItems(purchase.items.map(item => ({...item, cost: item.cost || 0, quantity: item.quantity || 1, lotNumber: item.lotNumber || ''})));
     replaceCosts(purchase.associatedCosts || []);
@@ -353,8 +373,9 @@ export default function PurchasesPage() {
   };
   
   const handleDelete = async (id: string) => {
+    if(!firestore) return;
     try {
-      await deleteDocumentNonBlocking(doc(firestore, "purchases", id));
+      await deleteDocumentNonBlocking(firestore, doc(firestore, "purchases", id));
       toast({ title: "Orden de compra eliminada", variant: "destructive" });
     } catch (error) {
       toast({ title: 'Error', description: 'No se pudo eliminar la orden.', variant: 'destructive' });
@@ -397,6 +418,7 @@ export default function PurchasesPage() {
     setIsExporting(true);
     try {
       const pdf = new jsPDF();
+      // Logic to generate PDF...
       pdf.save('reporte_compras.pdf');
       toast({title: "Reporte de compras descargado."});
     } catch (error) {
@@ -407,23 +429,26 @@ export default function PurchasesPage() {
   };
 
     const requestLogistics = async (purchase: PurchaseOrder) => {
+        if (!firestore) return;
         try {
             await runTransaction(firestore, async (transaction) => {
+                // 1. Update the purchase order
                 const purchaseRef = doc(firestore, 'purchases', purchase.id!);
                 transaction.update(purchaseRef, {
                     logisticsStatus: 'Solicitada',
                     logisticsStatusTimestamp: Timestamp.now()
                 });
 
+                // 2. Create the corresponding pickup order
                 const pickupRef = doc(collection(firestore, 'pickups'));
                 const supplier = suppliers?.find(s => s.id === purchase.supplierId);
                 const newPickup = {
                     folio: `REC-${pickupRef.id.substring(0, 6)}`,
-                    client: purchase.supplierName,
-                    origin: supplier?.address || 'Dirección no especificada',
-                    scheduledDate: format(new Date(), 'dd/MM/yyyy'),
-                    status: 'Programada',
-                    purchaseOrderId: purchase.id,
+                    client: purchase.supplierName, // The supplier is the "client" for the pickup
+                    origin: (supplier as any)?.address || supplier?.companyName || 'Dirección no especificada', // Use supplier's address if available, fallback to companyName
+                    scheduledDate: format(new Date(), 'dd/MM/yyyy'), // Scheduled for today
+                    status: 'Programada' as const,
+                    purchaseOrderId: purchase.id, // Link to the purchase order
                 };
                 transaction.set(pickupRef, newPickup);
             });
@@ -445,7 +470,7 @@ export default function PurchasesPage() {
   
   const sendWhatsAppNotification = (purchase: PurchaseOrder) => {
     const branch = branches?.find(b => b.id === purchase.branchId);
-    const logisticsPhone = '524432270901';
+    const logisticsPhone = '524432270901'; // Should be a config value
     if (logisticsPhone) {
         const message = `¡Nueva recolección solicitada!\n*Proveedor:* ${purchase.supplierName}\n*Orden No:* ${purchase.id?.substring(0, 7)}\n*Sucursal Destino:* ${branch?.name || 'No especificada'}\n*Ver en plataforma:* ${window.location.origin}/logistics/recolecciones`;
         const whatsappUrl = `https://wa.me/${logisticsPhone}?text=${encodeURIComponent(message)}`;
@@ -478,7 +503,7 @@ export default function PurchasesPage() {
                         <SelectTrigger className="w-[180px]"><SelectValue placeholder="Filtrar por estado" /></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">Todos los estados</SelectItem>
-                            {STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                            {STATUS_OPTIONS.map(s => s !== 'all' && <SelectItem key={s} value={s}>{s}</SelectItem>)}
                         </SelectContent>
                     </Select>
                     <Button variant="outline" onClick={handleExportPDF} disabled={isExporting}>
@@ -501,9 +526,104 @@ export default function PurchasesPage() {
                                                 </Select>
                                             </FormItem>
                                         )} />
-                                        {/* ...rest of form fields... (omitted for brevity) */}
+                                        <FormField control={form.control} name="supplierId" render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Proveedor</FormLabel>
+                                                <div className="flex gap-1">
+                                                    <Select onValueChange={field.onChange} value={field.value}>
+                                                        <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..."/></SelectTrigger></FormControl>
+                                                        <SelectContent>{suppliers?.map(s => <SelectItem key={s.id} value={s.id!}>{s.companyName}</SelectItem>)}</SelectContent>
+                                                    </Select>
+                                                    <Dialog open={isSupplierSearchOpen} onOpenChange={setIsSupplierSearchOpen}>
+                                                        <DialogTrigger asChild><Button type="button" variant="outline" size="icon"><Search className="h-4 w-4" /></Button></DialogTrigger>
+                                                        <DialogContent className="p-0"><Command><CommandInput placeholder="Buscar proveedor..." /><CommandList><CommandEmpty>No se encontraron.</CommandEmpty><CommandGroup>{suppliers?.map(s => (<CommandItem key={s.id} value={s.companyName} onSelect={() => { form.setValue("supplierId", s.id!); setIsSupplierSearchOpen(false);}}><Check className={cn("mr-2 h-4 w-4", s.id === field.value ? "opacity-100" : "opacity-0")} />{s.companyName}</CommandItem>))}</CommandGroup></CommandList></Command></DialogContent>
+                                                    </Dialog>
+                                                </div>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )} />
+                                        <FormField control={form.control} name="branchId" render={({ field }) => (<FormItem><FormLabel>Sucursal de Destino</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..."/></SelectTrigger></FormControl><SelectContent>{branches?.map(b => <SelectItem key={b.id} value={b.id!}>{b.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                                        <FormField control={form.control} name="date" render={({ field }) => (<FormItem><FormLabel>Fecha</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal",!field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "PPP")) : (<span>Seleccionar</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange}/></PopoverContent></Popover><FormMessage /></FormItem>)} />
+                                        <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{STATUS_OPTIONS.map(s => s !== 'all' && <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                                        <FormField control={form.control} name="paymentMethod" render={({ field }) => (
+                                          <FormItem>
+                                            <FormLabel>Método de Pago</FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                              <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                                              <SelectContent>
+                                                <SelectItem value="Efectivo">Efectivo</SelectItem>
+                                                <SelectItem value="Tarjeta">Tarjeta</SelectItem>
+                                                <SelectItem value="Credito" disabled={!selectedSupplier || (selectedSupplier.creditLimit || 0) <= 0}>Crédito</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </FormItem>
+                                        )} />
+                                        <FormField control={form.control} name="notes" render={({ field }) => (<FormItem><FormLabel>Notas</FormLabel><FormControl><Input {...field} placeholder="Cualquier información adicional..." value={field.value || ''} /></FormControl></FormItem>)} />
                                     </div>
-                                    {/* ...rest of component (omitted) ... */}
+                                    <div className="pt-6">
+                                        <h3 className="text-lg font-medium mb-2">Productos</h3>
+                                        <div className="space-y-4">
+                                            {itemFields.map((field, index) => (
+                                                 <div key={field.id} className="flex items-end gap-2 p-2 border rounded-md bg-muted/50">
+                                                    <FormField
+                                                        control={form.control}
+                                                        name={`items.${index}.productId`}
+                                                        render={({ field: productField }) => (
+                                                        <FormItem className="flex-1">
+                                                            <FormLabel>Producto</FormLabel>
+                                                            <div className="flex gap-1">
+                                                                <Select onValueChange={productField.onChange} value={productField.value}>
+                                                                    <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar producto..."/></SelectTrigger></FormControl>
+                                                                    <SelectContent>{products?.map(p => <SelectItem key={p.id} value={p.id!}>{p.name}</SelectItem>)}</SelectContent>
+                                                                </Select>
+                                                                <Dialog open={isProductSearchOpen && currentProductIndex === index} onOpenChange={(open) => {if (!open) setIsProductSearchOpen(false);}}>
+                                                                    <DialogTrigger asChild><Button type="button" variant="outline" size="icon" onClick={() => { setCurrentProductIndex(index); setIsProductSearchOpen(true);}}><Search className="h-4 w-4"/></Button></DialogTrigger>
+                                                                    <DialogContent className="p-0">
+                                                                        <Command filter={(value, search) => {
+                                                                            if (!products) return 0;
+                                                                            const product = products.find(p => p.name === value);
+                                                                            if (!product) return 0;
+                                                                            const match = product.name.toLowerCase().includes(search.toLowerCase()) || 
+                                                                                        (product.activeIngredient && product.activeIngredient.toLowerCase().includes(search.toLowerCase()));
+                                                                            return match ? 1 : 0;
+                                                                        }}>
+                                                                            <CommandInput placeholder="Buscar por nombre o ingrediente activo..." />
+                                                                            <CommandList>
+                                                                                <CommandEmpty>
+                                                                                    <div className="py-6 text-center text-sm">
+                                                                                        No se encontraron productos.
+                                                                                        <Button variant="link" className="mt-2" onClick={(e) => { e.preventDefault(); setIsNewProductDialogOpen(true); }}>
+                                                                                            <PlusCircle className="mr-2 h-4 w-4"/> Crear Nuevo Producto
+                                                                                        </Button>
+                                                                                    </div>
+                                                                                </CommandEmpty>
+                                                                                <CommandGroup>{products?.map(p=><CommandItem key={p.id} value={p.name} onSelect={() => {form.setValue(`items.${index}.productId`, p.id!); setIsProductSearchOpen(false);}}><Check className={cn("mr-2 h-4 w-4", form.getValues(`items.${index}.productId`) === p.id ? "opacity-100" : "opacity-0")}/>{p.name}</CommandItem>)}</CommandGroup>
+                                                                            </CommandList>
+                                                                        </Command>
+                                                                    </DialogContent>
+                                                                </Dialog>
+                                                            </div>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                        )}
+                                                    />
+                                                    <FormField control={form.control} name={`items.${index}.quantity`} render={({ field }) => (<FormItem><FormLabel>Cant.</FormLabel><FormControl><Input type="number" {...field} className="w-24"/></FormControl></FormItem>)} />
+                                                    <FormField control={form.control} name={`items.${index}.cost`} render={({ field }) => (<FormItem><FormLabel>Costo</FormLabel><FormControl><Input type="number" step="0.01" {...field} className="w-24"/></FormControl></FormItem>)} />
+                                                    <FormField control={form.control} name={`items.${index}.lotNumber`} render={({ field }) => (<FormItem><FormLabel>Lote</FormLabel><FormControl><Input {...field} className="w-40"/></FormControl></FormItem>)} />
+                                                    <Button type="button" variant="ghost" size="icon" onClick={() => removeItem(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                         <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => appendItem({ productId: '', productName: '', quantity: 1, cost: 0, lotNumber: `LOTE-${(itemFields.length + 1).toString().padStart(3, '0')}` })}>
+                                            <PlusCircle className="mr-2 h-4 w-4" /> Agregar Producto
+                                        </Button>
+                                     </div>
+                                     <div className="flex justify-end pt-6">
+                                        <Button type="submit" size="lg" disabled={form.formState.isSubmitting || creditError}>
+                                            {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                            {editingPurchase ? 'Guardar Cambios' : 'Crear Orden de Compra'}
+                                        </Button>
+                                    </div>
                                 </form>
                             </Form>
                         </DialogContent>
@@ -668,11 +788,11 @@ export default function PurchasesPage() {
                     <FormField control={newProductForm.control} name="name" render={({ field }) => (<FormItem><FormLabel>Nombre del Producto</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={newProductForm.control} name="sku" render={({ field }) => (<FormItem><FormLabel>SKU</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <div className="grid grid-cols-2 gap-4">
-                        <FormField control={newProductForm.control} name="price" render={({ field }) => (<FormItem><FormLabel>Precio Venta</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={newProductForm.control} name="cost" render={({ field }) => (<FormItem><FormLabel>Costo Compra</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={newProductForm.control} name="price" render={({ field }) => (<FormItem><FormLabel>Precio Venta</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? 0} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={newProductForm.control} name="cost" render={({ field }) => (<FormItem><FormLabel>Costo Compra</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? 0} /></FormControl><FormMessage /></FormItem>)} />
                     </div>
                     <FormField control={newProductForm.control} name="category" render={({ field }) => (<FormItem><FormLabel>Categoría</FormLabel><FormControl><Input placeholder="Ej: Herbicida" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={newProductForm.control} name="activeIngredient" render={({ field }) => (<FormItem><FormLabel>Ingrediente Activo</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={newProductForm.control} name="activeIngredient" render={({ field }) => (<FormItem><FormLabel>Ingrediente Activo</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
                     <Button type="submit" disabled={newProductForm.formState.isSubmitting}>
                         {newProductForm.formState.isSubmitting ? <Loader2 className="mr-2 animate-spin" /> : null}
                         Crear y Seleccionar

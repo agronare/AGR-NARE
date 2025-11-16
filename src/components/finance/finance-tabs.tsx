@@ -7,7 +7,6 @@ import { Button } from '../ui/button';
 import { PlusCircle } from 'lucide-react';
 import { AddTransactionDialog } from './add-transaction-dialog';
 import { format } from 'date-fns';
-import { FinancialStatements } from './financial-statements';
 
 type FinanceTabsProps = {
   income: Transaction[];

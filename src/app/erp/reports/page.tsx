@@ -158,7 +158,7 @@ export default function ReportsPage() {
                     </Button>
                   </CardHeader>
                   <CardContent>
-                    <VentasMensualesChart />
+                    <VentasMensualesChart data={[]} isLoading={isLoading} />
                   </CardContent>
                 </Card>
               )}

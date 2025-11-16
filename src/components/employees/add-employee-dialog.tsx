@@ -44,7 +44,7 @@ type AddEmployeeDialogProps = {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   onAddEmployee: (
-    data: Omit<Employee, 'id' | 'avatarUrl' | 'status'>
+    data: Omit<Employee, 'id' | 'avatarUrl' | 'status' | 'joinDate'> & { hireDate: Date }
   ) => void;
 };
 
@@ -93,10 +93,8 @@ export function AddEmployeeDialog({
   });
 
   const onSubmit = (data: z.infer<typeof employeeSchema>) => {
-    onAddEmployee({
-        ...data,
-        joinDate: format(data.hireDate, 'PP'),
-    });
+    // Pasamos hireDate y dejamos que el contenedor convierta a joinDate
+    onAddEmployee(data);
     form.reset();
     onOpenChange(false);
   };

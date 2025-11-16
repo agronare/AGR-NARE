@@ -87,7 +87,7 @@ export default function PurchasesClientPage() {
         status: 'draft',
       }
 
-      await setDocumentNonBlocking(firestore, doc(firestore, `purchases/${newId}`), payload as DocumentData, { merge: true })
+      await setDocumentNonBlocking(doc(firestore, `purchases/${newId}`), payload as DocumentData, { merge: true })
 
       toast({ title: 'Compra creada', description: 'La compra se ha creado correctamente.' })
       router.refresh()

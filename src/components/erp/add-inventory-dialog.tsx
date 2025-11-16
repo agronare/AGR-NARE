@@ -36,7 +36,12 @@ import { useEffect } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import type { Branch } from '@/app/hr/branches/page';
-import type { Product } from '@/app/erp/products/page';
+// Local Product type (module did not export it)
+interface Product {
+  id: string;
+  sku: string;
+  name: string;
+}
 
 type AddInventoryDialogProps = {
   isOpen: boolean;

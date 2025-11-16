@@ -137,7 +137,7 @@ export default function QuotationsPage() {
     try {
       if (editingQuote) {
         const quoteRef = doc(firestore, 'quotations', editingQuote.id!);
-        setDocumentNonBlocking(quoteRef, dataToSave, { merge: true });
+        await setDocumentNonBlocking(quoteRef, dataToSave, { merge: true });
         toast({ title: 'Cotización actualizada' });
       } else {
         const quotesCollectionRef = collection(firestore, 'quotations');
@@ -192,10 +192,10 @@ export default function QuotationsPage() {
         const totalValue = q.items.reduce((sum, item) => sum + (item.price || 0), 0);
         totalGeneral += totalValue;
         return [
-          q.quoteNumber,
-          q.supplierName,
+          q.quoteNumber ?? '',
+          q.supplierName ?? '',
           format(q.date, 'dd/MM/yyyy'),
-          q.status,
+          q.status ?? '',
           formatCurrency(totalValue)
         ];
       });
@@ -206,9 +206,9 @@ export default function QuotationsPage() {
         body: tableRows,
         headStyles: { fillColor: '#2E7D32' },
         didDrawPage: (data) => {
-          const pageCount = doc.internal.getNumberOfPages();
+          const pageCount = (doc as any).getNumberOfPages ? (doc as any).getNumberOfPages() : ((doc.internal as any).pages ? (doc.internal as any).pages.length : 1);
           doc.setFontSize(10);
-          doc.text('Página ' + data.pageNumber + ' de ' + pageCount, data.settings.margin.left, doc.internal.pageSize.height - 10);
+          doc.text('Página ' + data.pageNumber + ' de ' + pageCount, data.settings.margin.left, (doc.internal as any).pageSize.height - 10);
         }
       });
       
