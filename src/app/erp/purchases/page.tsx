@@ -538,10 +538,10 @@ export default function PurchasesPage() {
                                                         <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..."/></SelectTrigger></FormControl>
                                                         <SelectContent>{suppliers?.map(s => <SelectItem key={s.id} value={s.id!}>{s.companyName}</SelectItem>)}</SelectContent>
                                                     </Select>
-                                                    <Dialog open={isSupplierSearchOpen} onOpenChange={setIsSupplierSearchOpen}>
-                                                        <DialogTrigger asChild><Button type="button" variant="outline" size="icon"><Search className="h-4 w-4" /></Button></DialogTrigger>
-                                                        <DialogContent className="p-0"><Command><CommandInput placeholder="Buscar proveedor..." /><CommandList><CommandEmpty>No se encontraron.</CommandEmpty><CommandGroup>{suppliers?.map(s => (<CommandItem key={s.id} value={s.companyName} onSelect={() => { form.setValue("supplierId", s.id!); setIsSupplierSearchOpen(false);}}><Check className={cn("mr-2 h-4 w-4", s.id === field.value ? "opacity-100" : "opacity-0")} />{s.companyName}</CommandItem>))}</CommandGroup></CommandList></Command></DialogContent>
-                                                    </Dialog>
+                                                    <Popover open={isSupplierSearchOpen} onOpenChange={setIsSupplierSearchOpen}>
+                                                        <PopoverTrigger asChild><Button type="button" variant="outline" size="icon"><Search className="h-4 w-4" /></Button></PopoverTrigger>
+                                                        <PopoverContent className="p-0 w-80"><Command><CommandInput placeholder="Buscar proveedor..." /><CommandList><CommandEmpty>No se encontraron.</CommandEmpty><CommandGroup>{suppliers?.map(s => (<CommandItem key={s.id} value={s.companyName} onSelect={() => { form.setValue("supplierId", s.id!); setIsSupplierSearchOpen(false);}}><Check className={cn("mr-2 h-4 w-4", s.id === field.value ? "opacity-100" : "opacity-0")} />{s.companyName}</CommandItem>))}</CommandGroup></CommandList></Command></PopoverContent>
+                                                    </Popover>
                                                 </div>
                                                 <FormMessage />
                                             </FormItem>
@@ -581,9 +581,9 @@ export default function PurchasesPage() {
                                                                     <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar producto..."/></SelectTrigger></FormControl>
                                                                     <SelectContent>{products?.map(p => <SelectItem key={p.id} value={p.id!}>{p.name}</SelectItem>)}</SelectContent>
                                                                 </Select>
-                                                                <Dialog open={isProductSearchOpen && currentProductIndex === index} onOpenChange={(open) => {if (!open) setIsProductSearchOpen(false);}}>
-                                                                    <DialogTrigger asChild><Button type="button" variant="outline" size="icon" onClick={() => { setCurrentProductIndex(index); setIsProductSearchOpen(true);}}><Search className="h-4 w-4"/></Button></DialogTrigger>
-                                                                    <DialogContent className="p-0">
+                                                                <Popover open={isProductSearchOpen && currentProductIndex === index} onOpenChange={(open) => {if (!open) setIsProductSearchOpen(false);}}>
+                                                                    <PopoverTrigger asChild><Button type="button" variant="outline" size="icon" onClick={() => { setCurrentProductIndex(index); setIsProductSearchOpen(true);}}><Search className="h-4 w-4"/></Button></PopoverTrigger>
+                                                                    <PopoverContent className="p-0 w-80">
                                                                         <Command filter={(value, search) => {
                                                                             if (!products) return 0;
                                                                             const product = products.find(p => p.name === value);
@@ -597,16 +597,16 @@ export default function PurchasesPage() {
                                                                                 <CommandEmpty>
                                                                                     <div className="py-6 text-center text-sm">
                                                                                         No se encontraron productos.
-                                                                                        <Button variant="link" className="mt-2" onClick={(e) => { e.preventDefault(); setIsNewProductDialogOpen(true); }}>
+                                                                                        <Button variant="link" className="mt-2" onClick={(e) => { e.preventDefault(); setIsNewProductDialogOpen(true); setIsProductSearchOpen(false); }}>
                                                                                             <PlusCircle className="mr-2 h-4 w-4"/> Crear Nuevo Producto
                                                                                         </Button>
                                                                                     </div>
                                                                                 </CommandEmpty>
-                                                                                <CommandGroup>{products?.map(p=><CommandItem key={p.id} value={p.name} onSelect={() => {form.setValue(`items.${index}.productId`, p.id!); setIsProductSearchOpen(false);}}><Check className={cn("mr-2 h-4 w-4", form.getValues(`items.${index}.productId`) === p.id ? "opacity-100" : "opacity-0")}/>{p.name}</CommandItem>)}</CommandGroup>
+                                                                                <CommandGroup>{products?.map(p=><CommandItem key={p.id} value={p.name} onSelect={() => {form.setValue(`items.${index}.productId`, p.id!); form.setValue(`items.${index}.productName`, p.name); form.setValue(`items.${index}.cost`, p.cost || 0); setIsProductSearchOpen(false);}}><Check className={cn("mr-2 h-4 w-4", form.getValues(`items.${index}.productId`) === p.id ? "opacity-100" : "opacity-0")}/>{p.name}</CommandItem>)}</CommandGroup>
                                                                             </CommandList>
                                                                         </Command>
-                                                                    </DialogContent>
-                                                                </Dialog>
+                                                                    </PopoverContent>
+                                                                </Popover>
                                                             </div>
                                                             <FormMessage />
                                                         </FormItem>
@@ -623,6 +623,54 @@ export default function PurchasesPage() {
                                             <PlusCircle className="mr-2 h-4 w-4" /> Agregar Producto
                                         </Button>
                                      </div>
+                                     
+                                     <div className="pt-6 border-t">
+                                        <h3 className="text-lg font-medium mb-4">Costos Asociados (Opcional)</h3>
+                                        <div className="space-y-3">
+                                            {costFields.map((field, index) => (
+                                                <div key={field.id} className="flex items-end gap-2 p-2 border rounded-md bg-muted/50">
+                                                    <FormField control={form.control} name={`associatedCosts.${index}.concept`} render={({ field }) => (<FormItem className="flex-1"><FormLabel>Concepto</FormLabel><FormControl><Input {...field} placeholder="Ej: Flete, Seguro..." /></FormControl></FormItem>)} />
+                                                    <FormField control={form.control} name={`associatedCosts.${index}.amount`} render={({ field }) => (<FormItem className="w-32"><FormLabel>Monto</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
+                                                    <FormField control={form.control} name={`associatedCosts.${index}.prorate`} render={({ field }) => (<FormItem className="flex items-center gap-2 pt-2"><FormControl><input type="checkbox" checked={field.value} onChange={field.onChange} className="h-4 w-4" /></FormControl><FormLabel className="!mt-0">Prorratear</FormLabel></FormItem>)} />
+                                                    <Button type="button" variant="ghost" size="icon" onClick={() => removeCost(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => appendCost({ concept: '', amount: 0, prorate: true })}>
+                                            <PlusCircle className="mr-2 h-4 w-4" /> Agregar Costo
+                                        </Button>
+                                     </div>
+                                     
+                                     <div className="pt-6 border-t">
+                                        <div className="flex justify-end">
+                                            <div className="w-full max-w-sm space-y-2">
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-muted-foreground">Subtotal Productos:</span>
+                                                    <span className="font-medium">{formatCurrency(subtotalProducts)}</span>
+                                                </div>
+                                                {totalAssociatedCosts > 0 && (
+                                                    <div className="flex justify-between text-sm">
+                                                        <span className="text-muted-foreground">Costos Asociados:</span>
+                                                        <span className="font-medium">{formatCurrency(totalAssociatedCosts)}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-between text-base font-bold pt-2 border-t">
+                                                    <span>Total Orden:</span>
+                                                    <span>{formatCurrency(totalOrder)}</span>
+                                                </div>
+                                                {selectedSupplier && watchPaymentMethod === 'Credito' && (
+                                                    <div className="pt-2 space-y-2">
+                                                        <div className="flex justify-between text-xs">
+                                                            <span>Crédito Disponible:</span>
+                                                            <span className={creditError ? 'text-destructive font-semibold' : ''}>{formatCurrency(availableCredit)}</span>
+                                                        </div>
+                                                        {creditError && <p className="text-xs text-destructive">Crédito insuficiente para esta compra</p>}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                     </div>
+                                     
                                      <div className="flex justify-end pt-6">
                                         <Button type="submit" size="lg" disabled={form.formState.isSubmitting || creditError}>
                                             {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
