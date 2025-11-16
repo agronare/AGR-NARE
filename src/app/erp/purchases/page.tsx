@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -28,7 +26,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Supplier, Product, PurchaseOrder, PurchaseOrderStatus, InventoryItem, Quote, Branch, ProductSchema } from '@/lib/types';
 import { PlusCircle, Edit, Trash2, Loader2, CalendarIcon, AlertCircle, MoreHorizontal, BadgeCheck, CreditCard, AlertTriangle, Package, Truck, Filter, Search, Check, ChevronsUpDown, Download, FileText, QrCode, Send } from 'lucide-react';
-import { useCollection, useFirestore, useMemoFirebase, setDocumentNonBlocking, addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, setDocumentNonBlocking, addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking, useUser } from '@/firebase';
 import { collection, doc, Timestamp, query, runTransaction, writeBatch } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -116,20 +114,21 @@ export default function PurchasesPage() {
   const { toast } = useToast();
   const router = useRouter();
   const firestore = useFirestore();
+  const { user } = useUser();
 
   // Data fetching
   const purchasesCollection = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return query(collection(firestore, 'purchases'));
-  }, [firestore]);
+  }, [firestore, user]);
   const { data: rawPurchases, isLoading: loadingPurchases } = useCollection<PurchaseOrder>(purchasesCollection);
-  const suppliersCollection = useMemoFirebase(() => firestore ? collection(firestore, 'suppliers') : null, [firestore]);
+  const suppliersCollection = useMemoFirebase(() => firestore && user ? collection(firestore, 'suppliers') : null, [firestore, user]);
   const { data: suppliers, isLoading: loadingSuppliers } = useCollection<Supplier>(suppliersCollection);
-  const productsCollection = useMemoFirebase(() => firestore ? collection(firestore, 'products') : null, [firestore]);
+  const productsCollection = useMemoFirebase(() => firestore && user ? collection(firestore, 'products') : null, [firestore, user]);
   const { data: products, isLoading: loadingProducts } = useCollection<Product>(productsCollection);
-  const quotesCollection = useMemoFirebase(() => firestore ? collection(firestore, 'quotations') : null, [firestore]);
+  const quotesCollection = useMemoFirebase(() => firestore && user ? collection(firestore, 'quotations') : null, [firestore, user]);
   const { data: rawQuotes, isLoading: loadingQuotes } = useCollection<Quote>(quotesCollection);
-  const branchesCollection = useMemoFirebase(() => firestore ? collection(firestore, 'branches') : null, [firestore]);
+  const branchesCollection = useMemoFirebase(() => firestore && user ? collection(firestore, 'branches') : null, [firestore, user]);
   const { data: branches, isLoading: loadingBranches } = useCollection<Branch>(branchesCollection);
 
   const loading = loadingPurchases || loadingSuppliers || loadingProducts || loadingQuotes || loadingBranches;
@@ -185,8 +184,7 @@ export default function PurchasesPage() {
   useEffect(() => {
     const supplier = suppliers?.find(s => s.id === watchSupplierId);
     setSelectedSupplier(supplier || null);
-    // Suppliers that don't have a credit limit (or have a limit of 0) should not be allowed to use "Credito"
-    if (supplier && (supplier.creditLimit || 0) <= 0) {
+    if (supplier && !(supplier as any).hasCredit) {
       form.setValue('paymentMethod', 'Efectivo');
     }
   }, [watchSupplierId, suppliers, form]);
@@ -248,10 +246,7 @@ export default function PurchasesPage() {
             isBulk: false, salesUnit: 'Pieza', purchaseUnit: 'Pieza', conversionFactor: 1,
             objetoImp: '02', ivaRate: 0.16, iepsRate: 0,
         };
-        // create a DocumentReference with an auto-generated id and pass it to the helper which expects a DocumentReference
-        const productsCollectionRef = collection(firestore, 'products');
-        const newDocRef = doc(productsCollectionRef);
-        const docRef = await addDocumentNonBlocking(firestore, newDocRef, fullProductData);
+        const docRef = await addDocumentNonBlocking(collection(firestore, 'products'), fullProductData);
         if (docRef) {
             toast({ title: 'Producto Creado', description: 'El nuevo producto ha sido agregado al catálogo.' });
             form.setValue(`items.${currentProductIndex}.productId`, docRef.id);
@@ -356,18 +351,27 @@ export default function PurchasesPage() {
   const handleEdit = (purchase: PurchaseOrder) => {
     setEditingPurchase(purchase);
     form.reset({
+      receptionId: purchase.receptionId || '',
       supplierId: purchase.supplierId,
       branchId: purchase.branchId,
       date: purchase.date,
       status: purchase.status,
       items: [],
       associatedCosts: [],
-      receptionId: purchase.receptionId,
-      notes: purchase.notes,
-      quoteId: purchase.quoteId,
-      paymentMethod: purchase.paymentMethod as 'Efectivo' | 'Tarjeta' | 'Credito',
+      notes: purchase.notes || '',
+      quoteId: purchase.quoteId || '',
+      paymentMethod: (['Efectivo','Tarjeta','Credito'].includes(purchase.paymentMethod as any)
+        ? purchase.paymentMethod
+        : 'Efectivo') as PurchaseFormValues['paymentMethod'],
     });
-    replaceItems(purchase.items.map(item => ({...item, cost: item.cost || 0, quantity: item.quantity || 1, lotNumber: item.lotNumber || ''})));
+    replaceItems(
+      purchase.items.map(item => ({
+        ...item,
+        cost: item.cost || 0,
+        quantity: item.quantity || 1,
+        lotNumber: item.lotNumber || '',
+      }))
+    );
     replaceCosts(purchase.associatedCosts || []);
     setIsFormOpen(true);
   };
@@ -375,7 +379,7 @@ export default function PurchasesPage() {
   const handleDelete = async (id: string) => {
     if(!firestore) return;
     try {
-      await deleteDocumentNonBlocking(firestore, doc(firestore, "purchases", id));
+      await deleteDocumentNonBlocking(doc(firestore, "purchases", id));
       toast({ title: "Orden de compra eliminada", variant: "destructive" });
     } catch (error) {
       toast({ title: 'Error', description: 'No se pudo eliminar la orden.', variant: 'destructive' });
@@ -445,7 +449,7 @@ export default function PurchasesPage() {
                 const newPickup = {
                     folio: `REC-${pickupRef.id.substring(0, 6)}`,
                     client: purchase.supplierName, // The supplier is the "client" for the pickup
-                    origin: (supplier as any)?.address || supplier?.companyName || 'Dirección no especificada', // Use supplier's address if available, fallback to companyName
+                    origin: ((supplier as unknown as { address?: string })?.address) || 'Dirección no especificada',
                     scheduledDate: format(new Date(), 'dd/MM/yyyy'), // Scheduled for today
                     status: 'Programada' as const,
                     purchaseOrderId: purchase.id, // Link to the purchase order
@@ -545,6 +549,7 @@ export default function PurchasesPage() {
                                         <FormField control={form.control} name="branchId" render={({ field }) => (<FormItem><FormLabel>Sucursal de Destino</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..."/></SelectTrigger></FormControl><SelectContent>{branches?.map(b => <SelectItem key={b.id} value={b.id!}>{b.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                                         <FormField control={form.control} name="date" render={({ field }) => (<FormItem><FormLabel>Fecha</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal",!field.value && "text-muted-foreground")}>{field.value ? (format(field.value, "PPP")) : (<span>Seleccionar</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange}/></PopoverContent></Popover><FormMessage /></FormItem>)} />
                                         <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Estado</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{STATUS_OPTIONS.map(s => s !== 'all' && <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                                        <FormField control={form.control} name="receptionId" render={({ field }) => (<FormItem><FormLabel>Campaña Agrícola (ID Recepción)</FormLabel><FormControl><Input {...field} placeholder="Ej: Primavera 2024" value={field.value || ''} /></FormControl></FormItem>)} />
                                         <FormField control={form.control} name="paymentMethod" render={({ field }) => (
                                           <FormItem>
                                             <FormLabel>Método de Pago</FormLabel>
@@ -553,7 +558,7 @@ export default function PurchasesPage() {
                                               <SelectContent>
                                                 <SelectItem value="Efectivo">Efectivo</SelectItem>
                                                 <SelectItem value="Tarjeta">Tarjeta</SelectItem>
-                                                <SelectItem value="Credito" disabled={!selectedSupplier || (selectedSupplier.creditLimit || 0) <= 0}>Crédito</SelectItem>
+                                                <SelectItem value="Credito" disabled={!((selectedSupplier as any)?.hasCredit)}>Crédito</SelectItem>
                                               </SelectContent>
                                             </Select>
                                           </FormItem>
